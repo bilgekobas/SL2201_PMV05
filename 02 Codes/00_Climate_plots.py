@@ -1,3 +1,4 @@
+from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 import numpy as np
@@ -13,7 +14,35 @@ custom_font_path_2 = ".\Fonts\Archivo_SemiCondensed-Medium.ttf"
 custom_font_2 = FontProperties(fname=custom_font_path_2)
 
 # Apply the custom font globally
-rcParams['font.family'] = custom_font.get_name()
+
+# ==== Repo-relative paths (no private absolute paths) ====
+ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
+DATA   = ROOT / "01_Data"
+GRAPHS = ROOT / "03_Graphs"
+OUT    = ROOT / "04_Model_Outputs"
+FONTS  = ROOT / "Fonts"
+
+# Optional custom font
+try:
+    from matplotlib import rcParams
+    from matplotlib import font_manager
+    font_path = FONTS / "Archivo_SemiCondensed-Medium.ttf"
+    if font_path.exists():
+        font_manager.fontManager.addfont(str(font_path))
+        from matplotlib.font_manager import FontProperties
+        _custom_font = FontProperties(fname=str(font_path))
+        rcParams["font.family"] = _custom_font.get_name()
+except Exception:
+    pass
+
+# Embed editable text in vector outputs
+try:
+    rcParams['pdf.fonttype'] = 42
+    rcParams['ps.fonttype']  = 42
+except Exception:
+    pass
+
+
 
 # Scenario colors
 scenario_colors = {
@@ -34,7 +63,7 @@ ylim_rh = (27,62)
 
 
 #%% Read and filter
-data = pd.read_csv('.\\Data\\00_SL2201_CombinedData.csv')
+data = pd.read_csv(str(DATA / '00_SL2201_CombinedData.csv'))
 # Apply filters to the data
 filtered_data = data[
     (data['lab-id'] == 'SL') &
@@ -210,10 +239,10 @@ for label in ax1.get_yticklabels():
     label.set_fontsize(font_small)
     
 # Save the figure
-output_folder_path = ".\\Graphs\\Climate"  # Replace with your desired folder path
+output_folder_path = str(GRAPHS / 'Climate')  # Replace with your desired folder path
 output_file_name = "pmv_boxplot_and_line"  # File name without extension
 
-os.makedirs(output_folder_path, exist_ok=True)
+os.makedirs(str(output_folder_path), exist_ok=True)
 
 jpeg_path = os.path.join(output_folder_path, f"{output_file_name}.jpeg")
 pdf_path = os.path.join(output_folder_path, f"{output_file_name}.pdf")
@@ -345,10 +374,10 @@ for label in ax1.get_yticklabels():
     label.set_fontsize(font_small)
     
 # Save the figure
-output_folder_path = ".\\Graphs\\Climate"  # Replace with your desired folder path
+output_folder_path = str(GRAPHS / 'Climate')  # Replace with your desired folder path
 output_file_name = "top_boxplot_and_line"  # File name without extension
 
-os.makedirs(output_folder_path, exist_ok=True)
+os.makedirs(str(output_folder_path), exist_ok=True)
 
 jpeg_path = os.path.join(output_folder_path, f"{output_file_name}.jpeg")
 pdf_path = os.path.join(output_folder_path, f"{output_file_name}.pdf")
@@ -479,10 +508,10 @@ for label in ax1.get_yticklabels():
     label.set_fontsize(font_small)
     
 # Save the figure
-output_folder_path = ".\\Graphs\\Climate"  # Replace with your desired folder path
+output_folder_path = str(GRAPHS / 'Climate')  # Replace with your desired folder path
 output_file_name = "tdb_boxplot_and_line"  # File name without extension
 
-os.makedirs(output_folder_path, exist_ok=True)
+os.makedirs(str(output_folder_path), exist_ok=True)
 
 jpeg_path = os.path.join(output_folder_path, f"{output_file_name}.jpeg")
 pdf_path = os.path.join(output_folder_path, f"{output_file_name}.pdf")
@@ -614,10 +643,10 @@ for label in ax1.get_yticklabels():
     label.set_fontsize(font_small)
     
 # Save the figure
-output_folder_path = ".\\Graphs\\Climate"  # Replace with your desired folder path
+output_folder_path = str(GRAPHS / 'Climate')  # Replace with your desired folder path
 output_file_name = "tr-ashrae_boxplot_and_line"  # File name without extension
 
-os.makedirs(output_folder_path, exist_ok=True)
+os.makedirs(str(output_folder_path), exist_ok=True)
 
 jpeg_path = os.path.join(output_folder_path, f"{output_file_name}.jpeg")
 pdf_path = os.path.join(output_folder_path, f"{output_file_name}.pdf")
@@ -745,10 +774,10 @@ for label in ax1.get_yticklabels():
     label.set_fontsize(font_small)
     
 # Save the figure
-output_folder_path = ".\\Graphs\\Climate"  # Replace with your desired folder path
+output_folder_path = str(GRAPHS / 'Climate')  # Replace with your desired folder path
 output_file_name = "rh_boxplot_and_line"  # File name without extension
 
-os.makedirs(output_folder_path, exist_ok=True)
+os.makedirs(str(output_folder_path), exist_ok=True)
 
 jpeg_path = os.path.join(output_folder_path, f"{output_file_name}.jpeg")
 pdf_path = os.path.join(output_folder_path, f"{output_file_name}.pdf")

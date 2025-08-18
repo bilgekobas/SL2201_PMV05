@@ -1,3 +1,4 @@
+from pathlib import Path
 # -*- coding: utf-8 -*-
 """
 Created on Sat Jan  4 00:00:32 2025
@@ -145,24 +146,37 @@ def contrast_stats(res, v1: pd.Series, v0: pd.Series):
 
 #%% 0. Set variables
 # Working directory (change if needed)
-os.chdir(r"C:\Users\kobas\OneDrive\Desktop\Meta\SL2201 PMV")
-print("Current working directory:", os.getcwd())
-
 # Quiet font warnings
 warnings.filterwarnings("ignore", message=".*findfont:.*")
 
-# Register and use your custom font
-custom_font_path = r".\Fonts\Archivo_SemiCondensed-Medium.ttf"
-try:
-    fontManager.addfont(custom_font_path)  # register font file
-    custom_font = FontProperties(fname=custom_font_path)
-    rcParams['font.family'] = custom_font.get_name()
-except Exception as e:
-    print(f"Could not load custom font, using default. Reason: {e}")
+# ==== Repo-relative paths (no private absolute paths) ====
+ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
+DATA   = ROOT / "01_Data"
+GRAPHS = ROOT / "03_Graphs"
+OUT    = ROOT / "04_Model_Outputs"
+FONTS  = ROOT / "Fonts"
 
-# Keep text editable in vector outputs
-rcParams['pdf.fonttype'] = 42
-rcParams['ps.fonttype']  = 42
+# Optional custom font
+try:
+    from matplotlib import rcParams
+    from matplotlib import font_manager
+    font_path = FONTS / "Archivo_SemiCondensed-Medium.ttf"
+    if font_path.exists():
+        font_manager.fontManager.addfont(str(font_path))
+        from matplotlib.font_manager import FontProperties
+        _custom_font = FontProperties(fname=str(font_path))
+        rcParams["font.family"] = _custom_font.get_name()
+except Exception:
+    pass
+
+# Embed editable text in vector outputs
+try:
+    rcParams['pdf.fonttype'] = 42
+    rcParams['ps.fonttype']  = 42
+except Exception:
+    pass
+
+
 
 # Scenario colors (not used directly in this plot, but handy to keep)
 scenario_colors = {'T1': '#22181C', 
@@ -211,11 +225,11 @@ d_threshold = 0.44
 p_threshold = 0.05
 
 # Output folder (keep consistent across your pipeline)
-out_dir = "02_Model_Outputs_Sex"
-os.makedirs(out_dir, exist_ok=True)
+out_dir = str((OUT / '02_Model_Outputs_Sex'))
+os.makedirs(str(out_dir), exist_ok=True)
 
 #%% 1. Import & Filter Data
-data_full = pd.read_csv('.\\Data\\00_SL2201_CombinedData.csv')
+data_full = pd.read_csv(str(DATA / '00_SL2201_CombinedData.csv'))
 
 # Keep only relevant experiment runs
 data = data_full[

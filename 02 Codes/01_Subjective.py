@@ -10,7 +10,7 @@ Created on Tue Aug 12 23:24:44 2025
 Boxplots of TSV, TCV, KSS, and Thermal Satisfaction (VAS 1–101)
 by Sex (rows) × Cluster (cols) × Scenario (x).
 
-- Female boxes: #121417 (black-ish), Male boxes: #FF1F62 (pink)
+- Female boxes: #121417 (black-ish), Male boxes: #FF1F62 (pink) because why not.
 - Median lines use the opposite color.
 - Full y-scales; ref-lines: TSV=0, KSS=6, TSAT=50 (none for TCV).
 - Horizontal dashed y-grid. No legend.
@@ -35,27 +35,44 @@ from matplotlib.font_manager import FontProperties
 from matplotlib.ticker import MultipleLocator
 from scipy import stats
 
-# ---------------- YOU: set CWD + optional font ----------------
-os.chdir(r"C:\Users\kobas\OneDrive\Desktop\Meta\SL2201 PMV")
-print("Current working directory:", os.getcwd())
+from pathlib import Path
 
+def get_repo_root() -> Path:
+    # Use __file__ when running as a script; fall back to CWD in notebooks
+    here = Path(__file__).resolve() if "__file__" in globals() else Path.cwd()
+    # If this file is inside 02_Codes/, the repo root is one level up
+    return here.parent.parent if here.parent.name == "02_Codes" else here
+
+ROOT  = get_repo_root()
+DATA  = ROOT / "01_Data"
+GRAPHS = ROOT / "03_Graphs"
+OUT   = ROOT / "04_Model_Outputs"
+FONTS = ROOT / "Fonts"
+
+# ---------------- YOU: set CWD + optional font ----------------
 warnings.filterwarnings("ignore", message=".*findfont:.*")
 
+FONTS = Path(__file__).resolve().parents[1] / "Fonts"
+font_path = FONTS / "Archivo_SemiCondensed-Medium.ttf"
+
 try:
-    custom_font_path = r".\Fonts\Archivo_SemiCondensed-Medium.ttf"
-    font_manager.fontManager.addfont(custom_font_path)
-    custom_font = FontProperties(fname=custom_font_path)
-    rcParams['font.family'] = custom_font.get_name()
+    if font_path.exists():
+        font_manager.fontManager.addfont(str(font_path))
+        custom_font = FontProperties(fname=str(font_path))
+        rcParams["font.family"] = custom_font.get_name()
+    else:
+        custom_font = None
 except Exception:
-    pass
+    custom_font = None
 
 rcParams['pdf.fonttype'] = 42
 rcParams['ps.fonttype']  = 42
 
 # ---------------- paths ----------------
-DATA_FILE = Path("Data") / "Subjective" / "SubjectiveQuestionnaires_Answers.xlsx"  # Excel preferred
-OUT_DIR   = Path("05_Subjective")
-OUT_DIR.mkdir(exist_ok=True)
+# DATA_FILE_CSV = DATA / '00_SL2201_SubjectiveResponses.csv'
+DATA_FILE_XLSX = DATA / '00_SL2201_SubjectiveResponses.xlsx'
+OUT_DIR = ROOT / '05_Subjective'
+OUT_DIR.mkdir(parents=True, exist_ok=True)
 
 # ---------------- config (styling + labels) ----------------
 COLOR_F = "#121417"     # Female
@@ -108,13 +125,14 @@ SUBJECT_ID_CANDIDATES = ["part-id", "participant-id", "participant", "subject", 
 def norm(c: str) -> str:
     return str(c).strip().lower().replace(" ", "-").replace("_", "-")
 
-def load_table(path: Path) -> pd.DataFrame:
-    if path.suffix.lower() in (".xlsx", ".xls"):
-        return pd.read_excel(path, sheet_name=0, header=1, engine="openpyxl")
-    # fallback: CSV with cp1252 for Excel exports
-    return pd.read_csv(path, header=1, sep=None, engine="python", encoding="cp1252")
+def load_table_flexible(csv_path: Path, xlsx_path: Path):
+    if csv_path.exists():
+        return pd.read_csv(csv_path)
+    if xlsx_path.exists():
+        return pd.read_excel(xlsx_path, sheet_name=0, engine='openpyxl')
+    raise FileNotFoundError('Neither CSV nor XLSX subjective data file found in 01_Data/')
 
-df = load_table(DATA_FILE)
+df = load_table_flexible(DATA_FILE_XLSX)
 df.columns = [norm(c) for c in df.columns]
 
 # map sex / cluster
@@ -407,8 +425,8 @@ def plot_one(
 
     jpg = OUT_DIR / f"{fname_base}.jpeg"
     pdf = OUT_DIR / f"{fname_base}.pdf"
-    # fig.savefig(jpg, dpi=dpi, facecolor="white")
-    # fig.savefig(pdf, dpi=dpi, facecolor="white")
+    fig.savefig(jpg, dpi=dpi, facecolor="white")
+    fig.savefig(pdf, dpi=dpi, facecolor="white")
     plt.show()
 
 # --------------- extra comparisons for CSV (no annotations) ---------------
@@ -535,3 +553,32 @@ med_df.to_csv(med_out, index=False)
 print("Saved pairwise stats to:", pairs_out.resolve())
 print("Saved medians to:", med_out.resolve())
 print("Done.")
+
+
+# ==== Repo-relative paths (no private absolute paths) ====
+ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
+DATA   = ROOT / "01_Data"
+GRAPHS = ROOT / "03_Graphs"
+OUT    = ROOT / "04_Model_Outputs"
+FONTS  = ROOT / "Fonts"
+
+# Optional custom font
+try:
+    from matplotlib import rcParams
+    from matplotlib import font_manager
+    font_path = FONTS / "Archivo_SemiCondensed-Medium.ttf"
+    if font_path.exists():
+        font_manager.fontManager.addfont(str(font_path))
+        from matplotlib.font_manager import FontProperties
+        _custom_font = FontProperties(fname=str(font_path))
+        rcParams["font.family"] = _custom_font.get_name()
+except Exception:
+    pass
+
+# Embed editable text in vector outputs
+try:
+    rcParams['pdf.fonttype'] = 42
+    rcParams['ps.fonttype']  = 42
+except Exception:
+    pass
+

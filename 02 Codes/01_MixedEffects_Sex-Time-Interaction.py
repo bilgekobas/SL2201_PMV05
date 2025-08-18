@@ -1,3 +1,4 @@
+from pathlib import Path
 # -*- coding: utf-8 -*-
 """
 Sex × Time-of-day mixed-model plots (styling preserved)
@@ -171,24 +172,35 @@ def _fit_ml(formula, df, re_formula):
 
 
 #%% 0. Config (styling preserved) 
-
-# Working dir
-os.chdir(r"C:\Users\kobas\OneDrive\Desktop\Meta\SL2201 PMV")
-print("Current working directory:", os.getcwd())
-
 warnings.filterwarnings("ignore", message=".*findfont:.*")
 
-# Custom font (keeps your look)
+# ==== Repo-relative paths (no private absolute paths) ====
+ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
+DATA   = ROOT / "01_Data"
+GRAPHS = ROOT / "03_Graphs"
+OUT    = ROOT / "04_Model_Outputs"
+FONTS  = ROOT / "Fonts"
+
+# Optional custom font
 try:
-    custom_font_path = r".\Fonts\Archivo_SemiCondensed-Medium.ttf"
-    fontManager.addfont(custom_font_path)
-    custom_font = FontProperties(fname=custom_font_path)
-    rcParams['font.family'] = custom_font.get_name()
+    from matplotlib import rcParams
+    from matplotlib import font_manager
+    font_path = FONTS / "Archivo_SemiCondensed-Medium.ttf"
+    if font_path.exists():
+        font_manager.fontManager.addfont(str(font_path))
+        from matplotlib.font_manager import FontProperties
+        _custom_font = FontProperties(fname=str(font_path))
+        rcParams["font.family"] = _custom_font.get_name()
 except Exception:
     pass
 
-rcParams['pdf.fonttype'] = 42
-rcParams['ps.fonttype']  = 42
+# Embed editable text in vector outputs
+try:
+    rcParams['pdf.fonttype'] = 42
+    rcParams['ps.fonttype']  = 42
+except Exception:
+    pass
+
 
 # Factors/vars
 sexes     = ['F', 'M']
@@ -218,12 +230,12 @@ P_THRESH = 0.05
 D_THRESH = 0.45
 
 # Out dir
-OUT_DIR = "04_SexTime_Outputs"
-os.makedirs(OUT_DIR, exist_ok=True)
+OUT_DIR = str((OUT / '04_SexTime_Outputs'))
+os.makedirs(str(OUT_DIR), exist_ok=True)
 
 #%% Load & filter 
 
-data_full = pd.read_csv(r".\Data\00_SL2201_CombinedData.csv")
+data_full = pd.read_csv(str(DATA / '00_SL2201_CombinedData.csv'))
 data = (
     data_full[(data_full['lab-id'] == 'SL') & (data_full['break'] != 1)]
       .rename(columns={
@@ -734,3 +746,32 @@ fig.legend(
 plt.savefig(os.path.join(OUT_DIR, "ErrorPlots_Sex_Comparison.jpeg"), dpi=300)
 plt.savefig(os.path.join(OUT_DIR, "ErrorPlots_Sex_Comparison.pdf"), dpi=300)
 plt.show()
+
+
+# ==== Repo-relative paths (no private absolute paths) ====
+ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
+DATA   = ROOT / "01_Data"
+GRAPHS = ROOT / "03_Graphs"
+OUT    = ROOT / "04_Model_Outputs"
+FONTS  = ROOT / "Fonts"
+
+# Optional custom font
+try:
+    from matplotlib import rcParams
+    from matplotlib import font_manager
+    font_path = FONTS / "Archivo_SemiCondensed-Medium.ttf"
+    if font_path.exists():
+        font_manager.fontManager.addfont(str(font_path))
+        from matplotlib.font_manager import FontProperties
+        _custom_font = FontProperties(fname=str(font_path))
+        rcParams["font.family"] = _custom_font.get_name()
+except Exception:
+    pass
+
+# Embed editable text in vector outputs
+try:
+    rcParams['pdf.fonttype'] = 42
+    rcParams['ps.fonttype']  = 42
+except Exception:
+    pass
+
