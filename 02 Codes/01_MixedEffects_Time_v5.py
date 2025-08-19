@@ -140,13 +140,8 @@ def contrast_stats(res, v1: pd.Series, v0: pd.Series):
 
 
 #%% Set variables
-# Working directory (change if needed)
 # Quiet font warnings
 warnings.filterwarnings("ignore", message=".*findfont:.*")
-
-# Keep text editable in vector outputs
-rcParams['pdf.fonttype'] = 42
-rcParams['ps.fonttype']  = 42
 
 # ==== Repo-relative paths (no private absolute paths) ====
 ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
