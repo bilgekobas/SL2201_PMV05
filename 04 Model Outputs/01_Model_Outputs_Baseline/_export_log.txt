@@ -1,1 +1,1 @@
-Processed variables with contrasts: hr_clean, rmssd, lf_hf, skin_temp_wrist_smooth, EDA_Tonic
+Processed variables with contrasts: skin_temp_wrist_smooth, EDA_Tonic, hr_clean, rmssd, lf_hf

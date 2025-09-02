@@ -18,7 +18,6 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.ticker as ticker
-from matplotlib.font_manager import FontProperties, fontManager
 from matplotlib.lines import Line2D
 from matplotlib import rcParams
 import statsmodels.formula.api as smf
@@ -176,9 +175,9 @@ warnings.filterwarnings("ignore", message=".*findfont:.*")
 
 # ==== Repo-relative paths (no private absolute paths) ====
 ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
-DATA   = ROOT / "01_Data"
-GRAPHS = ROOT / "03_Graphs"
-OUT    = ROOT / "04_Model_Outputs"
+DATA   = ROOT / "01 Data"
+GRAPHS = ROOT / "03 Graphs"
+OUT    = ROOT / "04 Model Outputs"
 FONTS  = ROOT / "Fonts"
 
 # Optional custom font
@@ -209,11 +208,11 @@ scenarios = ['T1', 'T2', 'T3', 'T4']
 variables = ["skin_temp", "EDA_Tonic", "hr_clean", "rmssd", "lf_hf"]
 
 variable_settings = {
-    'skin_temp': {'ylim': (33.5, 37.5),  'spacing': 0.25, 'manual_offset': -0.75, 'gridline_step': 0.5, 'title': "Skin Temperature (°C)"},
-    'EDA_Tonic': {'ylim': (-3, 14),    'spacing': 0.85, 'manual_offset': -4.0, 'gridline_step': 1.0, 'title': "EDA Tonic (µS)"},
-    'hr_clean':  {'ylim': (65, 100),   'spacing': 2.00, 'manual_offset': -5.0, 'gridline_step': 2.0, 'title': "Heart Rate (bpm)"},
-    'rmssd':     {'ylim': (90, 250),   'spacing': 8.00, 'manual_offset': -15.0, 'gridline_step': 10.0,'title': "RMSSD (ms)"},
-    'lf_hf':     {'ylim': (0.3, 1.0),  'spacing': 0.05, 'manual_offset': -0.05, 'gridline_step': 0.05, 'title': "LF/HF Ratio"},
+    'skin_temp': {'ylim': (33.5, 37.5),  'spacing': 0.3, 'manual_offset': -0.5, 'gridline_step': 0.5, 'title': "Skin Temperature (°C)"},
+    'EDA_Tonic': {'ylim': (-3, 16),    'spacing': 1.3, 'manual_offset': -4.0, 'gridline_step': 2.0, 'title': "EDA Tonic (µS)"},
+    'hr_clean':  {'ylim': (68, 100),   'spacing': 3.0, 'manual_offset': -5.0, 'gridline_step': 5.0, 'title': "Heart Rate (bpm)"},
+    'rmssd':     {'ylim': (80, 280),   'spacing': 13.00, 'manual_offset': -15.0, 'gridline_step': 20.0,'title': "RMSSD (ms)"},
+    'lf_hf':     {'ylim': (0.3, 1.0),  'spacing': 0.05, 'manual_offset': -0.05, 'gridline_step': 0.1, 'title': "LF/HF Ratio"},
 }
 
 # Colors/markers/offsets (your palette)
@@ -553,9 +552,8 @@ for var, res in results.items():
 cell_df = pd.DataFrame(cell_rows)
 
 #%% PLOT A (rows=Sex; overlay Morning/Afternoon) -- not using this
-
-fig, axes = plt.subplots(len(sexes), len(variable_settings), figsize=(18, 16))
-fig.subplots_adjust(hspace=0.8)
+fig, axes = plt.subplots(len(sexes), len(variable_settings), figsize=(18/2.54, 18/2.54), sharey=False)
+fig.subplots_adjust(hspace=0.25, bottom=0.14)
 
 for row_idx, sex_value in enumerate(sexes):
     for col_idx, variable in enumerate(variable_settings.keys()):
@@ -563,76 +561,91 @@ for row_idx, sex_value in enumerate(sexes):
         s = variable_settings[variable]
         ylim, spacing, manual_offset, step = s['ylim'], s['spacing'], s['manual_offset'], s['gridline_step']
 
+        # axes cosmetics
         ax.set_ylim(ylim)
+        ax.tick_params(axis='both', labelsize=7)   # y- and x-ticks at 7
         ax.yaxis.set_major_locator(ticker.MultipleLocator(step))
         ax.grid(axis='y', linestyle="--", linewidth=0.5, color="#75726C", alpha=0.5)
         ax.spines['top'].set_visible(False);  ax.spines['right'].set_visible(False)
         ax.spines['left'].set_linewidth(1);   ax.spines['bottom'].set_linewidth(1)
 
-
-        # Plot errorbars for each cluster
+        # error bars for each cluster
         d = cell_df[(cell_df['variable'] == variable) & (cell_df['sex'] == sex_value)]
         x = np.arange(len(scenarios))
         for cl in clusters:
             dd = d[d['cluster'] == cl].set_index('scenario').loc[scenarios]
             x_positions = [xi + cluster_shift[cl] for xi in x]
-            ax.errorbar(
+            h = ax.errorbar(
                 x_positions, dd['estimate'].values,
                 yerr=[(dd['estimate'] - dd['ci_low']).values, (dd['ci_high'] - dd['estimate']).values],
                 fmt=cluster_markers[cl], color=cluster_colors[cl],
                 ecolor=cluster_colors[cl], capsize=1, markersize=1.5, elinewidth=1, label=cl
             )
 
-
-        # Titles/labels (show titles only on first row)
+        # titles/labels
         if row_idx == 0:
-            ax.set_title(s['title'], fontsize=14)
-        else:
-            ax.set_title("")
-
+            ax.set_title(s['title'], fontsize=8, pad=12)
         ax.set_xticks(range(len(scenarios)))
-        ax.set_xticklabels(scenarios, fontsize=12)
-        ax.set_title(s['title'], fontsize=14)
+        ax.set_xticklabels(scenarios, fontsize=7)
         if col_idx == 0:
-            ax.set_ylabel(f"Sex: {sex_value}", fontsize=14)
+            ax.set_ylabel(f"Sex: {sex_value}", fontsize=8)
 
-        # Top bars: within-sex within-cluster across scenarios (no gaps)
+        # --- TOP: within-sex × within-cluster across scenarios (plot both sig/non-sig when |d|≥thr)
         max_error_y = float(d['ci_high'].dropna().max())
         base_y      = max_error_y + manual_offset
-        block_gap   = spacing  # keep one-spacing gap between color blocks
-        
-        sig_top = contrasts_df[
+
+        top_df = contrasts_df[
             (contrasts_df['variable'] == variable) &
             (contrasts_df['contrast_type'] == 'within_sex_within_cluster_across_scenarios') &
             (contrasts_df['sex'] == sex_value) &
-            contrasts_df['sig_plot']
+            (contrasts_df['cohens_d'].abs() >= D_THRESH)
         ].copy()
-        
-        sig_top['x0'] = sig_top['level_A'].map({s: j for j, s in enumerate(scenarios)})
-        sig_top['x1'] = sig_top['level_B'].map({s: j for j, s in enumerate(scenarios)})
-        
-        rows_m = sig_top[sig_top['cluster'] == 'Morning'].sort_values(['x0','x1'])
-        rows_a = sig_top[sig_top['cluster'] == 'Afternoon'].sort_values(['x0','x1'])
-        
+
+        # x map + sort by cluster then pair
+        idx_map = {s: j for j, s in enumerate(scenarios)}
+        top_df['x0'] = top_df['level_A'].map(idx_map)
+        top_df['x1'] = top_df['level_B'].map(idx_map)
+        top_df = top_df.sort_values(['cluster', 'x0', 'x1'])
+
+        # alpha by significance (NaN -> non-sig)
+        top_df['p_value_fdr'] = top_df['p_value_fdr'].fillna(1.0)
+        top_df['is_sig'] = top_df['p_value_fdr'] <= P_THRESH
+        top_df['alpha']  = np.where(top_df['is_sig'], 1.0, 0.75)
+
         y = base_y + spacing
-        y = _draw_sig_bars(ax, rows_m, cluster_colors['Morning'], cluster_shift['Morning'], y, spacing)
-        y = _draw_sig_bars(ax, rows_a, cluster_colors['Afternoon'], cluster_shift['Afternoon'], y + block_gap, spacing)
+        for _, r in top_df.iterrows():
+            x0, x1 = int(r['x0']), int(r['x1'])
+            color  = cluster_colors[r['cluster']]
+            alpha  = float(r['alpha'])
+            ax.plot([x0, x1], [y, y], color=color, linewidth=0.6, alpha=alpha)
+            ax.text((x0 + x1)/2.0, y + spacing/5.0, f"{r['cohens_d']:.2f}",
+                    ha='center', va='bottom', fontsize=7, color=color, alpha=alpha,
+                    bbox=dict(facecolor='white', edgecolor='none', pad=0.6, alpha=0.9))
+            y += spacing
 
-
-        # Bottom labels: Afternoon − Morning within scenario (for this sex)
-        sig_bot = contrasts_df[
+        # --- BOTTOM: Afternoon − Morning within scenario (for this sex) ---
+        bot_df = contrasts_df[
             (contrasts_df['variable'] == variable) &
             (contrasts_df['contrast_type'] == 'within_sex_within_scenario_Afternoon_minus_Morning') &
             (contrasts_df['sex'] == sex_value) &
-            contrasts_df['sig_plot']
-        ]
-        for _, r in sig_bot.iterrows():
-            x_pos = scenarios.index(r['scenario'])
-            ax.text(x_pos, ylim[0] - 0.05*(ylim[1]-ylim[0]), f"{r['cohens_d']:.2f}",
-                    ha='center', va='top', fontsize=12, color='black')
+            (contrasts_df['cohens_d'].abs() >= D_THRESH)
+        ].copy()
 
-        # Clean spines
-        ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
+        bot_df['p_value_fdr'] = bot_df['p_value_fdr'].fillna(1.0)
+        bot_df['is_sig'] = bot_df['p_value_fdr'] <= P_THRESH
+        bot_df['alpha']  = np.where(bot_df['is_sig'], 1.0, 0.75)
+        bot_df['color']  = np.where(bot_df['is_sig'], 'black', 'gray')
+
+        ymin, ymax  = ax.get_ylim()
+        pad_bottom  = 0.06 * (ymax - ymin)
+        ax.set_ylim(ymin - pad_bottom, ymax)
+
+        for _, r in bot_df.iterrows():
+            sc_idx = scenarios.index(r['scenario'])
+            ax.text(sc_idx, ymin - pad_bottom * 2.2, f"{r['cohens_d']:.2f}",
+                    ha='center', va='top', fontsize=7,
+                    color=r['color'], alpha=float(r['alpha']),
+                    bbox=dict(facecolor='white', edgecolor='none', pad=0.6, alpha=0.9))
 
 # Legend (bottom)
 fig.legend(
@@ -640,18 +653,19 @@ fig.legend(
         Line2D([0], [0], color=cluster_colors["Morning"], marker=cluster_markers["Morning"], linestyle='', label='Morning'),
         Line2D([0], [0], color=cluster_colors["Afternoon"], marker=cluster_markers["Afternoon"], linestyle='', label='Afternoon'),
     ],
-    loc="lower center", bbox_to_anchor=(0.5, 0.07), ncol=2, fontsize=12, frameon=False
+    loc="lower center", bbox_to_anchor=(0.5, 0.04),
+    ncol=2, fontsize=7, frameon=False
 )
-
-plt.tight_layout(rect=[0, 0.1, 1, 0.95])
+plt.tight_layout(rect=[0, 0.08, 1, 1], w_pad=0.5)
 plt.savefig(os.path.join(OUT_DIR, "ErrorPlots_Cluster_Comparison.jpeg"), dpi=300)
 plt.savefig(os.path.join(OUT_DIR, "ErrorPlots_Cluster_Comparison.pdf"), dpi=300)
 plt.show()
 
-#%% PLOT B (rows=Cluster; overlay Female/Male) 
-fig, axes = plt.subplots(len(clusters), len(variable_settings), figsize=(18, 16))
-fig.subplots_adjust(hspace=0.15, bottom=0.14)
-# fig.subplots_adjust(hspace=0.2)
+
+#%% PLOT B (rows=Cluster; overlay Female/Male)
+
+fig, axes = plt.subplots(len(clusters), len(variable_settings), figsize=(18/2.54, 18/2.54), sharey=False)
+fig.subplots_adjust(hspace=0.25, bottom=0.14)
 
 for row_idx, cluster_value in enumerate(clusters):
     for col_idx, variable in enumerate(variable_settings.keys()):
@@ -659,119 +673,107 @@ for row_idx, cluster_value in enumerate(clusters):
         s = variable_settings[variable]
         ylim, spacing, manual_offset, step = s['ylim'], s['spacing'], s['manual_offset'], s['gridline_step']
 
+        # axes cosmetics
         ax.set_ylim(ylim)
+        ax.tick_params(axis='both', labelsize=7)   # y- and x-ticks at 7
         ax.yaxis.set_major_locator(ticker.MultipleLocator(step))
         ax.grid(axis='y', linestyle="--", linewidth=0.5, color="#75726C", alpha=0.5)
         ax.spines['top'].set_visible(False);  ax.spines['right'].set_visible(False)
         ax.spines['left'].set_linewidth(1);   ax.spines['bottom'].set_linewidth(1)
 
-        # Plot errorbars for each sex
+        # error bars for each sex
         d = cell_df[(cell_df['variable'] == variable) & (cell_df['cluster'] == cluster_value)]
         x = np.arange(len(scenarios))
         for sex in sexes:
             dd = d[d['sex'] == sex].set_index('scenario').loc[scenarios]
-            # Plot B — inside: for sex in sexes:
             x_positions = [xi + sex_shift[sex] for xi in x]
             ax.errorbar(
                 x_positions, dd['estimate'].values,
                 yerr=[(dd['estimate'] - dd['ci_low']).values, (dd['ci_high'] - dd['estimate']).values],
-                fmt=sex_markers[sex],                 # <-- was sex_markers[cl]
-                color=sex_colors[sex],                # <-- was sex_colors[cl]
-                ecolor=sex_colors[sex],               # <-- was sex_colors[cl]
-                capsize=4, markersize=4, elinewidth=1,
-                label=sex
+                fmt=sex_markers[sex], color=sex_colors[sex], ecolor=sex_colors[sex],
+                capsize=1, markersize=1.5, elinewidth=1, label=sex
             )
 
-
-
-        # Titles/labels (show titles only on first row)
+        # titles/labels
         if row_idx == 0:
-            ax.set_title(s['title'], fontsize=14)
-        else:
-            ax.set_title("")
-
+            ax.set_title(s['title'], fontsize=8, pad=12)
         ax.set_xticks(range(len(scenarios)))
-        ax.set_xticklabels(scenarios, fontsize=12)
-        # ax.set_title(s['title'], fontsize=14)
+        ax.set_xticklabels(scenarios, fontsize=7)
         if col_idx == 0:
-            ax.set_ylabel(f"Cluster: {cluster_value}", fontsize=14)
+            ax.set_ylabel(f"Cluster: {cluster_value}", fontsize=8)
 
-        # Top bars: within-cluster across scenarios by sex (no gaps)
+        # --- TOP: within-cluster across scenarios by sex (|d|≥thr; keep sex colors) ---
         max_error_y = float(d['ci_high'].dropna().max())
         base_y      = max_error_y + manual_offset
-        block_gap   = spacing
-        
-        sig_top = contrasts_df[
+
+        top_df = contrasts_df[
             (contrasts_df['variable'] == variable) &
             (contrasts_df['contrast_type'] == 'within_sex_within_cluster_across_scenarios') &
             (contrasts_df['cluster'] == cluster_value) &
-            contrasts_df['sig_plot']
+            (contrasts_df['cohens_d'].abs() >= D_THRESH)
         ].copy()
-        
-        sig_top['x0'] = sig_top['level_A'].map({s: j for j, s in enumerate(scenarios)})
-        sig_top['x1'] = sig_top['level_B'].map({s: j for j, s in enumerate(scenarios)})
-        
-        rows_f = sig_top[sig_top['sex'] == 'F'].sort_values(['x0','x1'])
-        rows_m = sig_top[sig_top['sex'] == 'M'].sort_values(['x0','x1'])
-        
+
+        idx_map = {s: j for j, s in enumerate(scenarios)}
+        top_df['x0'] = top_df['level_A'].map(idx_map)
+        top_df['x1'] = top_df['level_B'].map(idx_map)
+        top_df = top_df.sort_values(['sex', 'x0', 'x1'])
+
+        top_df['p_value_fdr'] = top_df['p_value_fdr'].fillna(1.0)
+        top_df['is_sig'] = top_df['p_value_fdr'] <= P_THRESH
+        top_df['alpha']  = np.where(top_df['is_sig'], 1.0, 0.75)
+
         y = base_y + spacing
-        y = _draw_sig_bars(ax, rows_f, sex_colors['F'], sex_shift['F'], y, spacing)
-        y = _draw_sig_bars(ax, rows_m, sex_colors['M'], sex_shift['M'], y + block_gap, spacing)
+        for _, r in top_df.iterrows():
+            x0, x1 = int(r['x0']), int(r['x1'])
+            color  = sex_colors[r['sex']]
+            alpha  = float(r['alpha'])
+            ax.plot([x0, x1], [y, y], color=color, linewidth=0.6, alpha=alpha)
+            ax.text((x0 + x1)/2.0, y + spacing/5.0, f"{r['cohens_d']:.2f}",
+                    ha='center', va='bottom', fontsize=7, color=color, alpha=alpha,
+                    bbox=dict(facecolor='white', edgecolor='none', pad=0.6, alpha=0.9))
+            y += spacing
 
-
-        # Bottom labels: Male − Female within scenario (for this cluster)
-        sig_bot = contrasts_df[
+        # --- BOTTOM: Male − Female within scenario (for this cluster) ---
+        bot_df = contrasts_df[
             (contrasts_df['variable'] == variable) &
             (contrasts_df['contrast_type'] == 'within_cluster_within_scenario_Male_minus_Female') &
             (contrasts_df['cluster'] == cluster_value) &
-            contrasts_df['sig_plot']
-        ]
-        for _, r in sig_bot.iterrows():
-            x_pos = scenarios.index(r['scenario'])
-            ax.text(x_pos, ylim[0] - 0.05*(ylim[1]-ylim[0]), f"{r['cohens_d']:.2f}",
-                    ha='center', va='top', fontsize=12, color='black')
+            (contrasts_df['cohens_d'].abs() >= D_THRESH)
+        ].copy()
 
-        ax.spines['top'].set_visible(False); ax.spines['right'].set_visible(False)
+        bot_df['p_value_fdr'] = bot_df['p_value_fdr'].fillna(1.0)
+        bot_df['is_sig'] = bot_df['p_value_fdr'] <= P_THRESH
+        bot_df['alpha']  = np.where(bot_df['is_sig'], 1.0, 0.75)
+        bot_df['color']  = np.where(bot_df['is_sig'], 'black', 'gray')
+
+        ymin, ymax  = ax.get_ylim()
+        pad_bottom  = 0.06 * (ymax - ymin)
+        ax.set_ylim(ymin - pad_bottom, ymax)
+
+        for _, r in bot_df.iterrows():
+            sc_idx = scenarios.index(r['scenario'])
+            ax.text(sc_idx, ymin - pad_bottom * 2.5, f"{r['cohens_d']:.2f}",
+                    ha='center', va='top', fontsize=7,
+                    color=r['color'], alpha=float(r['alpha']),
+                    bbox=dict(facecolor='white', edgecolor='none', pad=0.6, alpha=0.9))
 
 # Legend
 fig.legend(
     handles=[
-        Line2D([0], [0], color=sex_colors["F"], marker=sex_markers["F"], linestyle='', label='Female'),
-        Line2D([0], [0], color=sex_colors["M"], marker=sex_markers["M"], linestyle='', label='Male'),
+        Line2D([0], [0], color=sex_colors["F"], marker=sex_markers["F"],
+               linestyle='', label='Female', markersize=4, markeredgewidth=0),
+        Line2D([0], [0], color=sex_colors["M"], marker=sex_markers["M"],
+               linestyle='', label='Male',   markersize=4, markeredgewidth=0),
     ],
-    loc="lower center", bbox_to_anchor=(0.5, 0.07), ncol=2, fontsize=14, frameon=False
+    loc="lower center", bbox_to_anchor=(0.5, 0.04),
+    ncol=2, fontsize=7, frameon=False,
+    # optional fine-tuning:
+    handlelength=0.8, handletextpad=0.4, markerscale=1.0
 )
-
-# plt.tight_layout(rect=[0, 0.1, 1, 0.95])
+    
+    
+    
+plt.tight_layout(rect=[0, 0.08, 1, 1], w_pad=0.5)
 plt.savefig(os.path.join(OUT_DIR, "ErrorPlots_Sex_Comparison.jpeg"), dpi=300)
 plt.savefig(os.path.join(OUT_DIR, "ErrorPlots_Sex_Comparison.pdf"), dpi=300)
 plt.show()
-
-
-# ==== Repo-relative paths (no private absolute paths) ====
-ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
-DATA   = ROOT / "01_Data"
-GRAPHS = ROOT / "03_Graphs"
-OUT    = ROOT / "04_Model_Outputs"
-FONTS  = ROOT / "Fonts"
-
-# Optional custom font
-try:
-    from matplotlib import rcParams
-    from matplotlib import font_manager
-    font_path = FONTS / "Archivo_SemiCondensed-Medium.ttf"
-    if font_path.exists():
-        font_manager.fontManager.addfont(str(font_path))
-        from matplotlib.font_manager import FontProperties
-        _custom_font = FontProperties(fname=str(font_path))
-        rcParams["font.family"] = _custom_font.get_name()
-except Exception:
-    pass
-
-# Embed editable text in vector outputs
-try:
-    rcParams['pdf.fonttype'] = 42
-    rcParams['ps.fonttype']  = 42
-except Exception:
-    pass
-

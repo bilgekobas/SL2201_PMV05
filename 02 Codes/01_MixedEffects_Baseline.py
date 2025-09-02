@@ -32,7 +32,7 @@ import os
 from pathlib import Path
 
 # ------------------------ Output directory ------------------------
-output_dir = "01_Model_Outputs_Baseline"
+output_dir = "./04 Model Outputs/01_Model_Outputs_Baseline"
 os.makedirs(output_dir, exist_ok=True)
 
 # ------------------------ Helper functions ------------------------
@@ -103,14 +103,71 @@ def contrast_from_fit(result, A, B):
     d = cohens_d_from_estimate(est, result.scale)
     return est, se, z, p, d, ci_lo, ci_hi
 
+def draw_cohens_d_brackets(ax, df_contrasts, x_positions, y_base, spacing, yrange):
+    """
+    Apply 3 rules to draw brackets + labels for Cohen's d:
+
+      1) |d| < 0.45 and q > 0.05  -> DROP (not plotted, no space)
+      2) |d| >= 0.45 and q > 0.05 -> gray bracket + gray text (normal)
+      3) |d| >= 0.45 and q < 0.05 -> black bracket + black text (normal)
+    """
+    # cap = 0.02 * yrange
+    text_pad = 0.01 * yrange
+
+    # standard ordering of pairs
+    all_pairs = [('T1','T2'), ('T1','T3'), ('T1','T4'),
+                 ('T2','T3'), ('T2','T4'), ('T3','T4')]
+
+    # filter pairs based on rules
+    filtered = []
+    for (A, B) in all_pairs:
+        row = df_contrasts[(df_contrasts['level_A'] == A) &
+                           (df_contrasts['level_B'] == B)]
+        if row.empty:
+            continue
+        row = row.iloc[0]
+        d = row.get('cohens_d', np.nan)
+        q = row.get('q', np.nan)
+
+        if pd.isna(d):
+            continue
+        # Rule 1 → skip completely
+        if abs(d) < 0.45 and (pd.isna(q) or q > 0.05):
+            continue
+        # Rule 2 → gray
+        elif abs(d) >= 0.45 and (pd.isna(q) or q > 0.05):
+            filtered.append((A, B, d, q, 'gray'))
+        # Rule 3 → black
+        elif abs(d) >= 0.45 and q <= 0.05:
+            filtered.append((A, B, d, q, 'black'))
+
+    # now actually plot them, stacked with spacing
+    for i, (A, B, d, q, color) in enumerate(filtered):
+        y = y_base + i * spacing
+        x1, x2 = x_positions[A], x_positions[B]
+
+        # bracket
+        ax.plot([x1, x1, x2, x2],
+                [y, y, y, y],
+                lw=0.8, color=color, clip_on=False)
+
+        # label
+        label = f"{d:.2f}"
+        ax.text((x1 + x2) / 2.0, y + text_pad, label,
+                ha="center", va="bottom",
+                fontsize=7, fontweight='normal',
+                color=color, clip_on=False,
+                bbox=dict(facecolor="white", edgecolor="none", pad=0.5, alpha=0.8))
+
+
 # ------------------------ Config ------------------------
 
 
 # ==== Repo-relative paths (no private absolute paths) ====
 ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
-DATA   = ROOT / "01_Data"
-GRAPHS = ROOT / "03_Graphs"
-OUT    = ROOT / "04_Model_Outputs"
+DATA   = ROOT / "01 Data"
+GRAPHS = ROOT / "03 Graphs"
+OUT    = ROOT / "04 Model_Outputs"
 FONTS  = ROOT / "Fonts"
 
 # Optional custom font
@@ -146,12 +203,14 @@ downsample_variables = ['lf_hf', 'rmssd', 'EDA_Tonic', 'skin_temp_wrist_smooth']
 original_resolution_variables = ['hr_clean']
 
 variables = {
-    'hr_clean': {'ylim': (72, 96), 'spacing': 1.5, 'start_offset': 1},
-    'rmssd': {'ylim': (100, 220), 'spacing': 6.5, 'start_offset': 2},
-    'lf_hf': {'ylim': (0.4, 1), 'spacing': 0.03, 'start_offset': -0.025},
-    'skin_temp_wrist_smooth': {'ylim': (33, 37), 'spacing': 0.3, 'start_offset': -0.1},
-    'EDA_Tonic': {'ylim': (0, 9), 'spacing': 0.55, 'start_offset': -0.05},
+    'skin_temp_wrist_smooth': {'ylim': (33, 38), 'spacing': 0.5, 'start_offset': -0.18},
+    'EDA_Tonic': {'ylim': (0, 11), 'spacing': 1.15, 'start_offset': -0.7},
+    'hr_clean': {'ylim': (74, 88), 'spacing': 1.5, 'start_offset': 1},
+    'rmssd': {'ylim': (100, 220), 'spacing': 13, 'start_offset': 0},
+    'lf_hf': {'ylim': (0.4, 0.9), 'spacing': 0.03, 'start_offset': -0.01}
 }
+
+gridline_steps = {'skin_temp_wrist_smooth': 1, 'EDA_Tonic': 1.0, 'hr_clean': 2.0, 'rmssd': 20.0, 'lf_hf': 0.1}
 
 variable_titles = {
     'skin_temp_wrist_smooth': "Skin temperature (°C)",
@@ -186,6 +245,8 @@ for variable in original_resolution_variables:
 
 results = {}
 master_contrasts = []
+contrasts_by_var = {}
+
 processed_vars = []  # track which variables successfully wrote contrasts
 warnings_log = []
 scenarios = ['T1', 'T2', 'T3', 'T4']
@@ -277,7 +338,7 @@ for variable, settings in variables.items():
     doc.save(os.path.join(output_dir, f"00_Model_Output_{output_prefix}_{variable}.docx"))
 
     residuals = result.resid
-    plt.figure(figsize=(5, 5))
+    plt.figure(figsize=(5, 6))
     stats.probplot(residuals, dist="norm", plot=plt)
     plt.title(f"Q-Q Plot of Residuals for {variable}")
     plt.grid(visible=True, linestyle="--", axis="both")
@@ -309,6 +370,7 @@ for variable, settings in variables.items():
     df_contrasts['signif'] = np.where(df_contrasts['q'] < 0.05, 'T', '')
 
     df_contrasts.to_csv(os.path.join(output_dir, f"00_Contrasts_{output_prefix}_{variable}.csv"), index=False)
+    contrasts_by_var[variable] = df_contrasts.copy()
     master_contrasts.append(df_contrasts)
     processed_vars.append(variable)
 
@@ -331,46 +393,83 @@ with open(log_path, "w", encoding="utf-8") as fh:
 
 
 # Combined multi-panel plot (PNG + JPEG)
-
 variables_to_plot = list(variables.keys())
 titles = variable_titles
-gridline_steps = {'skin_temp_wrist_smooth': 1, 'EDA_Tonic': 1.0, 'hr_clean': 2.0, 'rmssd': 20.0, 'lf_hf': 0.1}
 
-fig, axes = plt.subplots(1, len(variables_to_plot), figsize=(18 / 2.54, 6 / 2.54), sharey=False)
+
+fig, axes = plt.subplots(1, len(variables_to_plot), figsize=(18 / 2.54, 7 / 2.54), sharey=False)
+
+# Use numeric positions to make bracket drawing robust
+x_positions = {'T1': 0, 'T2': 1, 'T3': 2, 'T4': 3}
+x_labels = ['T1', 'T2', 'T3', 'T4']
+
 for i, variable in enumerate(variables_to_plot):
     ax = axes[i]
     res = results.get(variable)
     if res is None:
         ax.axis('off')
         continue
+
     fe = res.fe_params
     bse = res.bse
-    confidence_intervals = {
+
+    # Compute scenario means and CIs from the model (your original logic)
+    ci = {
         "T1": (fe['Intercept'] - 1.96 * bse['Intercept'], fe['Intercept'] + 1.96 * bse['Intercept'])
     }
-    for sc in ['T2','T3','T4']:
+    for sc in ['T2', 'T3', 'T4']:
         k = f"scenario[T.{sc}]"
-        confidence_intervals[sc] = (fe['Intercept'] + fe[k] - 1.96 * bse[k], fe['Intercept'] + fe[k] + 1.96 * bse[k])
+        mu = fe['Intercept'] + fe[k]
+        ci[sc] = (mu - 1.96 * bse[k], mu + 1.96 * bse[k])
+
     means = [fe['Intercept']] + [fe['Intercept'] + fe[f"scenario[T.{sc}]"] for sc in ['T2','T3','T4']]
-    lower_bounds = [ci[0] for ci in confidence_intervals.values()]
-    upper_bounds = [ci[1] for ci in confidence_intervals.values()]
-    spacing = variables[variable]['spacing']
-    start_offset = variables[variable]['start_offset']
+    lower_bounds = [ci[s][0] for s in x_labels]
+    upper_bounds = [ci[s][1] for s in x_labels]
+
+    # Plot means with 95% CI as error bars
+    errs = np.vstack([np.array(means) - np.array(lower_bounds),
+                      np.array(upper_bounds) - np.array(means)])
+    ax.errorbar(list(x_positions.values()), means,
+                yerr=errs,
+                fmt='o', markersize=1.5, color='black', ecolor='black',
+                capsize=1, elinewidth=1, capthick=1)
+
+    # Cosmetics and limits
+    ax.set_title(titles[variable], fontsize=8, pad=10)
+    ax.tick_params(axis='both', labelsize=7)
     ylim = variables[variable]['ylim']
-    ax.errorbar(['T1','T2','T3','T4'], means,
-                yerr=[np.array(means)-np.array(lower_bounds), np.array(upper_bounds)-np.array(means)],
-                fmt='o', markersize=1.5, color='black', ecolor='black', capsize=1, elinewidth=1, capthick=1)
-    ax.set_title(titles[variable], fontsize=6)
-    ax.tick_params(axis='both', labelsize=6)
     ax.set_ylim(ylim)
     step = gridline_steps[variable]
     ax.yaxis.set_major_locator(ticker.MultipleLocator(step))
     ax.spines['top'].set_visible(False)
     ax.spines['right'].set_visible(False)
     ax.grid(visible=True, linestyle='--', axis='y', linewidth=0.5, color='#2e2e2e')
+    ax.set_xticks(list(x_positions.values()), labels=x_labels)
+
+    # --- NEW: draw Cohen's d brackets above the pairs ---
+    dfc = contrasts_by_var.get(variable)
+    if dfc is not None and not dfc.empty:
+        yrange = ylim[1] - ylim[0]
+        # base height just above the tallest CI, plus any per-variable tuning
+        top_ci = max(upper_bounds)
+        start_offset = variables[variable]['start_offset']  # your per-variable tweak
+        spacing = variables[variable]['spacing']            # your per-variable spacing
+        y_base = top_ci + 0.06 * yrange + start_offset
+        draw_cohens_d_brackets(
+            ax=ax,
+            df_contrasts=dfc,
+            x_positions=x_positions,
+            y_base=y_base,
+            spacing=spacing,
+            yrange=yrange
+        )
 
 axes[2].set_xlabel('Test scenarios', fontsize=7, labelpad=8, ha='center')
 plt.tight_layout()
+
 plt.savefig(os.path.join(output_dir, f"{output_prefix}_combined_variables_plot.png"), dpi=1200)
 plt.savefig(os.path.join(output_dir, f"{output_prefix}_combined_variables_plot.jpeg"), dpi=1200)
+
+plt.show()
 plt.close()
+

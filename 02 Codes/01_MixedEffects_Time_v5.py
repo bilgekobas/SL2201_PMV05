@@ -145,9 +145,9 @@ warnings.filterwarnings("ignore", message=".*findfont:.*")
 
 # ==== Repo-relative paths (no private absolute paths) ====
 ROOT = Path(__file__).resolve().parents[1]  # repo root (assuming scripts live in 02_Codes/)
-DATA   = ROOT / "01_Data"
-GRAPHS = ROOT / "03_Graphs"
-OUT    = ROOT / "04_Model_Outputs"
+DATA   = ROOT / "01 Data"
+GRAPHS = ROOT / "03 Graphs"
+OUT    = ROOT / "04 Model Outputs"
 FONTS  = ROOT / "Fonts"
 
 # Optional custom font
@@ -207,10 +207,10 @@ gridline_steps = {
 
 # Panel limits and annotation offsets
 variables_all = {
-    'hr_clean':   {'ylim': (70, 92),   'spacing': 1.2,  'start_offset': 1},
-    'rmssd':      {'ylim': (110, 220), 'spacing': 7,    'start_offset': 5},
+    'hr_clean':   {'ylim': (70, 94),   'spacing': 1.2,  'start_offset': 1},
+    'rmssd':      {'ylim': (120, 220), 'spacing': 7,    'start_offset': 5},
     'lf_hf':      {'ylim': (0.3, 0.9), 'spacing': 0.04, 'start_offset': -0.06},
-    'skin_temp':  {'ylim': (33, 37),   'spacing': 0.3,  'start_offset': 0.05},
+    'skin_temp':  {'ylim': (33.5, 37.5),   'spacing': 0.3,  'start_offset': 0.05},
     'EDA_Tonic':  {'ylim': (-2, 16),   'spacing': 1.3,  'start_offset': -0.5},
 }
 
@@ -500,7 +500,7 @@ print(f"Saved cluster-focused table to: {excel_path_cluster}")
 
 #%% Vis — model-based means/CI + sig annotations (above & below)
 
-fig, axes = plt.subplots(1, len(variables), figsize=(18 / 2.54, 8 / 2.54), sharey=False)
+fig, axes = plt.subplots(1, len(variables), figsize=(18 / 2.54, 9 / 2.54), sharey=False)
 
 # Build model-based cell estimates (means + 95% CI from fixed-effects covariance)
 rows = []
@@ -546,9 +546,9 @@ for i, variable in enumerate(variables):
 
     # Axes cosmetics
     ax.set_xticks(x)
-    ax.set_xticklabels(scenarios, fontsize=6)
-    ax.set_title(titles[variable], fontsize=7, pad=9)
-    ax.tick_params(axis='both', pad=0.01, labelsize=6)
+    ax.set_xticklabels(scenarios, fontsize=7)
+    ax.set_title(titles[variable], fontsize=8, pad=12)
+    ax.tick_params(axis='both', pad=0.02, labelsize=7)
     ax.set_ylim(variables_all[variable]['ylim'])
     step = gridline_steps[variable]
     ax.yaxis.set_major_locator(ticker.MultipleLocator(step))
@@ -564,7 +564,7 @@ for i, variable in enumerate(variables):
 fig.legend(
     legend_handles, legend_labels,
     loc='lower center', bbox_to_anchor=(0.5, 0.01),
-    fancybox=False, frameon=False, ncol=2, fontsize=6
+    fancybox=False, frameon=False, ncol=2, fontsize=7
 )
 
 # ---------- Annotations ----------
@@ -572,52 +572,69 @@ for i, variable in enumerate(variables):
     ax = axes[i]
     dfv = cell_estimates[cell_estimates['variable'] == variable]
 
-    # Top annotations: within-cluster across-scenarios (bars above)
+    # --- base y, spacing
     max_upper = float(dfv['ci_high'].max())
     start_y   = max_upper + variables_all[variable]['start_offset']
     spacing   = variables_all[variable]['spacing']
 
-    sig_top = contrasts_df[
+    # ===== TOP (within-cluster across scenarios) =====
+    top_df = contrasts_df[
         (contrasts_df['variable'] == variable) &
         (contrasts_df['contrast_type'] == 'within_cluster_across_scenarios') &
-        (contrasts_df['p_value_fdr'] < (p_threshold if 'p_threshold' in globals() else 0.05)) &
-        (contrasts_df['cohens_d'].abs() > (d_threshold if 'd_threshold' in globals() else 0.45))
+        (contrasts_df['cohens_d'].abs() >= d_threshold)
     ].copy()
+    top_df['p_value_fdr'] = top_df['p_value_fdr'].fillna(1.0)
+    top_df['is_sig'] = top_df['p_value_fdr'] <= p_threshold
+    top_df['alpha']  = np.where(top_df['is_sig'], 1.0, 0.75)
 
-    sig_top['x0'] = sig_top['level_A'].map({s: j for j, s in enumerate(scenarios)})
-    sig_top['x1'] = sig_top['level_B'].map({s: j for j, s in enumerate(scenarios)})
-    sig_top = sig_top.sort_values(['cluster', 'x0', 'x1'])
+    # DEBUG: always print counts, even when zero
+    print(f"[{variable}] TOP >=|d|: {len(top_df)} "
+          f"(sig={int(top_df['is_sig'].sum())}, "
+          f"non-sig={int((~top_df['is_sig']).sum())})")
 
-    for j, row in enumerate(sig_top.itertuples(index=False)):
+    # map x and sort
+    idx_map = {s: j for j, s in enumerate(scenarios)}
+    top_df['x0'] = top_df['level_A'].map(idx_map)
+    top_df['x1'] = top_df['level_B'].map(idx_map)
+    top_df = top_df.sort_values(['cluster', 'x0', 'x1'])
+
+    for j, row in enumerate(top_df.itertuples(index=False)):
         x0, x1 = int(row.x0), int(row.x1)
-        c = row.cluster
-        y = start_y + j * spacing
-        ax.plot([x0, x1], [y, y], color=cluster_colors[c], linewidth=0.5)
-        ax.text((x0 + x1)/2, y + spacing/5, f"{row.cohens_d:.2f}",
-                ha="center", fontsize=5, color=cluster_colors[c])
+        y      = start_y + j * spacing
+        color  = cluster_colors[row.cluster]
+        alpha  = float(row.alpha)
+        ax.plot([x0, x1], [y, y], color=color, linewidth=0.6, alpha=alpha)
+        ax.text((x0 + x1)/2.0, y + spacing/5.0, f"{row.cohens_d:.2f}",
+                ha="center", va="bottom", fontsize=7, color=color, alpha=alpha,
+                bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.9))
 
-    # Bottom annotations: within-scenario across-clusters (Afternoon − Morning) under tick
-    sig_bot = contrasts_df[
+    # ===== BOTTOM (within-scenario across clusters) =====
+    bot_df = contrasts_df[
         (contrasts_df['variable'] == variable) &
         (contrasts_df['contrast_type'] == 'within_scenario_across_clusters') &
-        (contrasts_df['p_value_fdr'] < p_threshold) &
-        (contrasts_df['cohens_d'].abs() > d_threshold)
+        (contrasts_df['cohens_d'].abs() >= d_threshold)
     ].copy()
-    
-    # Add more bottom padding so text is below x-axis labels
+    bot_df['p_value_fdr'] = bot_df['p_value_fdr'].fillna(1.0)
+    bot_df['is_sig'] = bot_df['p_value_fdr'] <= p_threshold
+    bot_df['alpha']  = np.where(bot_df['is_sig'], 1.0, 0.75)
+    bot_df['color']  = np.where(bot_df['is_sig'], 'black', 'gray')
+
+    # DEBUG: always print counts
+    print(f"[{variable}] BOT >=|d|: {len(bot_df)} "
+          f"(sig={int(bot_df['is_sig'].sum())}, "
+          f"non-sig={int((~bot_df['is_sig']).sum())})")
+
+    # ensure space below labels
     ymin, ymax = ax.get_ylim()
     pad_bottom = 0.06 * (ymax - ymin)
     ax.set_ylim(ymin - pad_bottom, ymax)
-    
-    for row in sig_bot.itertuples(index=False):
+
+    for row in bot_df.itertuples(index=False):
         sc_idx = scenarios.index(row.scenario)
-        # Place text well below tick labels
-        ax.text(
-            sc_idx, ymin - pad_bottom * 2.2,
-            f"{row.cohens_d:.2f}",
-            ha="center", va="top",
-            fontsize=5, color="black"  
-        )
+        ax.text(sc_idx, ymin - pad_bottom * 2.2, f"{row.cohens_d:.2f}",
+                ha="center", va="top", fontsize=7,
+                color=row.color, alpha=float(row.alpha),
+                bbox=dict(facecolor="white", edgecolor="none", pad=0.6, alpha=0.9))
 
 plt.tight_layout(rect=[0, 0.05, 1, 1], w_pad=0.5)
 
@@ -630,3 +647,5 @@ plt.close()
 
 print(f"Saved model outputs to: {excel_path_models}")
 print(f"Saved contrasts to: {excel_path_contrasts}")
+
+
