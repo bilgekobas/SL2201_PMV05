@@ -15,7 +15,7 @@ INPUTS = {
     "00_SL2201_CombinedData.csv": "4ce989c1207f8094e14faf1a117f063fb6b7d6b3f9e672e34a2777d9a96a639a",
     "00_SL2201_SubjectiveResponses.xlsx": "9b0b800d871d17ac9afdeccf253e0e49fab4a42cab52fa2e5fa5deb1d805f7ca",
 }
-PREFIXES = ("11", "18", "17", "22", "23", "24", "25", "05", "07", "06")
+PREFIXES = ("11", "18", "17", "22", "23", "24", "25", "05", "07", "06", "27", "26")
 
 
 def download_inputs(directory):
